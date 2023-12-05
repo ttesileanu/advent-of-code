@@ -10,12 +10,8 @@ from typing import Generic, Iterator, List, Tuple, TypeVar, Union
 advent = "Advent of Code 2023"
 program_name = os.path.splitext(os.path.basename(sys.argv[0]))[0]
 if program_name.startswith("solve"):
-    splits = program_name[5:].split("_")
-    day = splits[0]
-    if len(splits) > 1:
-        phase = splits[1]
-    else:
-        phase = "unk"
+    day = program_name[5:-1]
+    phase = program_name[-1]
 else:
     day = "unk"
     phase = "unk"

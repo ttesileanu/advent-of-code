@@ -24,6 +24,7 @@ parser = argparse.ArgumentParser(prog=program_name, description=f"{desc}.")
 parser.add_argument("input", nargs="?", default=input_name)
 parser.add_argument("-v", "--verbose", action="store_true")
 parser.add_argument("-q", "--quiet", action="store_true")
+parser.add_argument("-t", "--tests", action="store_true", help="run tests (if any)")
 
 args = parser.parse_args()
 

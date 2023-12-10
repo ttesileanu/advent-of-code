@@ -42,16 +42,26 @@ def get_ways_to_win(T: int, r: int) -> int:
         return 0
 
 
-def read_input() -> Sequence[Tuple[int, int]]:
+def read_input(ignore_spaces: bool = False) -> Sequence[Tuple[int, int]]:
     it = iterinput()
 
     times_str = next(it)
     assert times_str.startswith("Time:")
-    times = [int(_) for _ in times_str[5:].split(" ") if _]
+    times_str = times_str[5:]
+
+    if not ignore_spaces:
+        times = [int(_) for _ in times_str.split(" ") if _]
+    else:
+        times = [int(times_str.replace(" ", ""))]
 
     records_str = next(it)
     assert records_str.startswith("Distance:")
-    records = [int(_) for _ in records_str[9:].split(" ") if _]
+    records_str = records_str[9:]
+
+    if not ignore_spaces:
+        records = [int(_) for _ in records_str.split(" ") if _]
+    else:
+        records = [int(records_str.replace(" ", ""))]
 
     assert len(times) == len(records)
     races = list(zip(times, records))

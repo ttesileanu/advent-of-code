@@ -71,24 +71,6 @@ if FANCY_PLOTTING:
         return ax
 
 
-if not FANCY_PLOTTING:
-
-    def show_pretty_map(
-        map: Matrix,
-        target: Optional[Tuple[int, int]] = None,
-        depths: Optional[Dict[Tuple[int, int], int]] = None,
-    ):
-        if target is not None:
-            logger.warning(
-                "'target' ignored in show_pretty_map with no graphics backend"
-            )
-        if depths is not None:
-            logger.warning(
-                "'depths' ignored in show_pretty_map with no graphics backend"
-            )
-        print(map)
-
-
 def get_pipe_neighbors(map: Matrix, i: int, j: int) -> Sequence[Tuple[int, int]]:
     elem = map[i, j]
     neighbors = []

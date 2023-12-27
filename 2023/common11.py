@@ -35,18 +35,22 @@ def parse_image(img: Matrix) -> SimpleNamespace:
     return res
 
 
-def _expanded_1d(i1: int, i2: int, empty: List[int]) -> int:
+def _expanded_1d(i1: int, i2: int, empty: List[int], factor: int = 2) -> int:
     m = min(i1, i2)
     M = max(i1, i2)
 
     to_expand = [_ for _ in empty if m <= _ <= M]
-    return abs(M - m) + len(to_expand)
+    return abs(M - m) + len(to_expand) * (factor - 1)
 
 
 def expanded_distance(
-    a: Tuple[int, int], b: Tuple[int, int], empty_rows: List[int], empty_cols: List[int]
+    a: Tuple[int, int],
+    b: Tuple[int, int],
+    empty_rows: List[int],
+    empty_cols: List[int],
+    factor: int = 2,
 ) -> int:
     """This is Manhattan distance, with some columns or rows expanded."""
-    d_rows = _expanded_1d(a[0], b[0], empty_rows)
-    d_cols = _expanded_1d(a[1], b[1], empty_cols)
+    d_rows = _expanded_1d(a[0], b[0], empty_rows, factor=factor)
+    d_cols = _expanded_1d(a[1], b[1], empty_cols, factor=factor)
     return d_rows + d_cols

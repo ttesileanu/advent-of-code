@@ -43,11 +43,8 @@ if FANCY_PLOTTING:
                     color = np.asarray([0, 0, 1])
                 elif depths is not None and (i, j) in depths:
                     depth = depths[(i, j)]
-                    if depth % 2 == 0:
-                        g = 0.1 + 0.2 * depth / max_depth
-                    else:
-                        g = 0.7 + 0.2 * depth / max_depth
-                    color = np.asarray([g, g, g])
+                    g = 0.4 + 0.4 * depth / max_depth
+                    color = np.asarray([0, g, 0])
                 else:
                     color = np.asarray([1, 1, 1])
 
@@ -67,7 +64,10 @@ if FANCY_PLOTTING:
         if ax is None:
             _, ax = plt.subplots()
 
-        ax.imshow(pretty_map(map, target=target, depths=depths))
+        ax.imshow(
+            pretty_map(map, target=target, depths=depths),
+            extent=(-0.5, map.ncols - 0.5, map.nrows - 0.5, -0.5),
+        )
         return ax
 
 

@@ -28,6 +28,7 @@ if FANCY_PLOTTING:
         map: Matrix,
         target: Optional[Tuple[int, int]] = None,
         depths: Optional[Dict[Tuple[int, int], int]] = None,
+        tags: Optional[Matrix] = None,
     ) -> np.ndarray:
         v = np.zeros((3 * map.nrows, 3 * map.ncols, 3))
         max_depth = None if depths is None else max(depths.values())
@@ -35,6 +36,10 @@ if FANCY_PLOTTING:
             si = 3 * i
             for j, elem in enumerate(row):
                 sj = 3 * j
+                if tags is not None:
+                    tag = tags[i, j]
+                else:
+                    tag = " "
 
                 if elem == "S":
                     color = np.asarray([1, 0, 0])
@@ -50,6 +55,15 @@ if FANCY_PLOTTING:
                 pretty_elem = np.asarray(PRETTY_DICT[elem])
                 elem_sq = color[None, None, :] * pretty_elem[..., None]
 
+                if tag == "I":
+                    f = np.asarray([0.8, 0.8, 1.2])[None, None, :]
+                    c = np.asarray([-0.05, 0.05, 0.3])[None, None, :]
+                    elem_sq = np.clip(elem_sq * f + c, 0, 1)
+                elif tag == "O":
+                    f = np.asarray([1.2, 0.8, 0.8])[None, None, :]
+                    c = np.asarray([0.3, -0.05, 0.05])[None, None, :]
+                    elem_sq = np.clip(elem_sq * f + c, 0, 1)
+
                 v[si : si + 3, sj : sj + 3] = elem_sq
 
         return v
@@ -59,12 +73,13 @@ if FANCY_PLOTTING:
         ax: Optional[plt.Axes] = None,
         target: Optional[Tuple[int, int]] = None,
         depths: Optional[Dict[Tuple[int, int], int]] = None,
+        tags: Optional[Matrix] = None,
     ) -> plt.Axes:
         if ax is None:
             _, ax = plt.subplots()
 
         ax.imshow(
-            pretty_map(map, target=target, depths=depths),
+            pretty_map(map, target=target, depths=depths, tags=tags),
             extent=(-0.5, map.ncols - 0.5, map.nrows - 0.5, -0.5),
         )
         plt.show()

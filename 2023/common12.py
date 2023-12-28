@@ -27,6 +27,9 @@ def find_match_number(R: str, P: List[int]) -> int:
 
     # max size of M: N * K * 9 * N = O(N^2 * K)
 
+    # XXX this can be optimized a lot, but the day-12 puzzle still runs in <1 minute on
+    #     my laptop
+
     assert len(R) >= 1
     assert len(P) >= 1
 

@@ -4,6 +4,8 @@ from typing import Iterator, List
 
 from utils import iterinput, logger
 
+from common12 import find_match_number
+
 
 def possible_arrangements(s: str) -> Iterator[str]:
     unknown_idxs = [i for i in range(len(s)) if s[i] == "?"]
@@ -34,12 +36,14 @@ def rle_encode(s: str) -> List[int]:
 
 
 if __name__ == "__main__":
-    n_allowed = []
+    all_n_allowed = []
     for line in iterinput():
         corrupted_row, rle_str = line.split(" ")
         rle = [int(_) for _ in rle_str.split(",")]
 
         logger.debug(f"{corrupted_row=}, {rle=}")
+
+        n_allowed = find_match_number(corrupted_row, rle)
 
         allowed = []
         for row in possible_arrangements(corrupted_row):
@@ -47,7 +51,8 @@ if __name__ == "__main__":
                 logger.debug(f"possible interpretation: {row}")
                 allowed.append(row)
 
-        assert allowed
-        n_allowed.append(len(allowed))
+        assert n_allowed == len(allowed)
 
-    print(f"Sum of possible arrangement counts is {sum(n_allowed)}")
+        all_n_allowed.append(n_allowed)
+
+    print(f"Sum of possible arrangement counts is {sum(all_n_allowed)}")

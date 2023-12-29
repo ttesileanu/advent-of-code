@@ -119,16 +119,49 @@ class Matrix(Generic[T]):
         for row, col in self.iterneighbors(idx0, idx1, diagonals=diagonals):
             yield self.data[row][col]
 
+    def transpose(self) -> "Matrix[T]":
+        new_data = []
+        for j in range(self.ncols):
+            new_row = []
+            for i in range(self.nrows):
+                new_row.append(self[i, j])
 
-def loadmatrix() -> Matrix[str]:
-    data = [list(_) for _ in iterinput()]
+            new_data.append(new_row)
 
+        mt = Matrix(new_data, self.ncols, self.nrows)
+        return mt
+
+
+def _matrix_from_data(data: List[List[str]]) -> Matrix[str]:
     nrows = len(data)
     ncols = len(data[0])
     for row in data:
         assert len(row) == ncols
 
     matrix = Matrix(data, nrows, ncols)
-    logger.info(f"Loaded matrix size {matrix.nrows} x {matrix.ncols}.")
-
     return matrix
+
+
+def loadmatrix() -> Matrix[str]:
+    data = [list(_) for _ in iterinput()]
+    matrix = _matrix_from_data(data)
+    logger.info(f"Loaded matrix size {matrix.nrows} x {matrix.ncols}.")
+    return matrix
+
+
+def itermatrix() -> Iterator[Matrix[str]]:
+    data = []
+    for line in iterinput():
+        if line:
+            data.append(line)
+        else:
+            if data:
+                matrix = _matrix_from_data(data)
+                logger.debug(f"Loaded matrix size {matrix.nrows} x {matrix.ncols}.")
+                data = []
+                yield matrix
+
+    if data:
+        matrix = _matrix_from_data(data)
+        logger.debug(f"Loaded matrix size {matrix.nrows} x {matrix.ncols}.")
+        yield matrix

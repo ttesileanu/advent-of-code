@@ -1,7 +1,6 @@
 from fractions import Fraction
+from functools import cache
 from typing import List, Optional, Sequence
-
-from memo import memo
 
 
 def diff(v: Sequence[int]) -> Sequence[int]:
@@ -14,7 +13,7 @@ def diff(v: Sequence[int]) -> Sequence[int]:
     return d
 
 
-@memo
+@cache
 def binom(n: int, k: int) -> int:
     """Binomial coefficient."""
     assert k >= 0
@@ -27,7 +26,7 @@ def binom(n: int, k: int) -> int:
     return binom(n - 1, k - 1) + binom(n - 1, k)
 
 
-@memo
+@cache
 def bernoulli(m: int) -> Fraction:
     """Negative Bernoulli coefficient.
 

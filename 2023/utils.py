@@ -153,7 +153,7 @@ def itermatrix() -> Iterator[Matrix[str]]:
     data = []
     for line in iterinput():
         if line:
-            data.append(line)
+            data.append(list(line))
         else:
             if data:
                 matrix = _matrix_from_data(data)

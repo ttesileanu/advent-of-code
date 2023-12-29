@@ -1,10 +1,11 @@
 import argparse
 import dataclasses
 import logging
+import math
 import os
 import sys
 
-from typing import Generic, Iterator, List, Tuple, TypeVar, Union
+from typing import Generic, Iterator, List, Optional, Sequence, Tuple, TypeVar, Union
 
 
 advent = "Advent of Code 2023"
@@ -71,9 +72,34 @@ class Matrix(Generic[T]):
     nrows: int
     ncols: int
 
-    def __str__(self) -> str:
+    def __init__(
+        self,
+        data: List[List[T]],
+        nrows: Optional[int] = None,
+        ncols: Optional[int] = None,
+    ):
+        self.data = data
+
+        if nrows is not None:
+            assert len(data) == nrows
+        else:
+            nrows = len(data)
+
+        if ncols is not None:
+            assert all(len(_) == ncols for _ in data)
+        else:
+            if len(data) > 0:
+                ncols = len(data[0])
+                assert all(len(_) == ncols for _ in data[1:])
+            else:
+                ncols = 0
+
+        self.nrows = nrows
+        self.ncols = ncols
+
+    def __repr__(self) -> str:
         s = "Matrix(\n    "
-        s += "\n    ".join("".join(_) for _ in self.data)
+        s += "\n    ".join("".join(str(c) for c in _) for _ in self.data)
         s += "\n)"
         return s
 
@@ -130,6 +156,144 @@ class Matrix(Generic[T]):
 
         mt = Matrix(new_data, self.ncols, self.nrows)
         return mt
+
+    def transposed_view(self) -> "View[T]":
+        return View(self, [[0, 1], [1, 0]], [0, 0])
+
+    def rotated_view(self, count: int) -> "View[T]":
+        """A view rotated `count * 90` degrees clockwise."""
+        count = count % 4
+        if count == 0:
+            A = [[1, 0], [0, 1]]
+            b = [0, 0]
+        elif count == 1:
+            A = [[0, -1], [1, 0]]
+            b = [self.nrows - 1, 0]
+        elif count == 2:
+            A = [[-1, 0], [0, -1]]
+            b = [self.nrows - 1, self.ncols - 1]
+        elif count == 3:
+            A = [[0, 1], [-1, 0]]
+            b = [0, self.ncols - 1]
+        else:
+            assert False
+
+        return View(self, A=A, b=b)
+
+    def get_hash(self) -> int:
+        d = {"nrows": self.nrows, "ncols": self.ncols}
+        d["data"] = tuple(tuple(_) for _ in self.data)
+        return hash(tuple(d.items()))
+
+
+class View(Generic[T]):
+    """Provide a view into a matrix using affinely transformed indices.
+
+    This simply transforms indices before using the underlying matrix's __getitem__
+    and __setitem__. Specifically, given a 2x2 matrix `A` and a length-2 sequence `b`,
+    we have
+
+    ```
+        View[i, j] = mat[
+            A[0][0] * i + A[0][1] * j + b[0],
+            A[1][0] * i + A[1][1] * j + b[1],
+        ]
+    ```
+    """
+
+    def __init__(self, mat: Matrix[T], A: Sequence[Sequence[int]], b: Sequence[int]):
+        self.mat = mat
+
+        assert len(b) == 2
+        assert len(A) == 2 and all(len(_) == 2 for _ in A)
+
+        self.A = A
+        self.b = b
+
+        self.extents = None
+        self.nrows = None
+        self.ncols = None
+        self._find_extents()
+
+    def transformed_idx(self, i: int, j: int) -> Tuple[int, int]:
+        mi = self.A[0][0] * i + self.A[0][1] * j + self.b[0]
+        mj = self.A[1][0] * i + self.A[1][1] * j + self.b[1]
+        return mi, mj
+
+    def __getitem__(self, idx: Tuple[int, int]) -> T:
+        mi, mj = self.transformed_idx(*idx)
+        if mi < 0 or mj < 0 or mi >= self.mat.nrows or mj >= self.mat.ncols:
+            raise IndexError(f"Maps to invalid index ({mi}, {mj})")
+        return self.mat[mi, mj]
+
+    def __setitem__(self, idx: Tuple[int, int], value: T):
+        mi, mj = self.transformed_idx(*idx)
+        if mi < 0 or mj < 0 or mi >= self.mat.nrows or mj >= self.mat.ncols:
+            raise IndexError(f"Maps to invalid index ({mi}, {mj})")
+        self.mat[mi, mj] = value
+
+    def __repr__(self):
+        s = f"View(A={self.A}, b={self.b}, mat={self.mat!s})"
+        return s
+
+    def as_matrix(self) -> Matrix[T]:
+        if self.extents is None:
+            raise ValueError(
+                "Can only convert to matrix if view is trivial, rotated, or transposed"
+            )
+
+        i0, i1, j0, j1 = self.extents
+        if i0 != 0 or j0 != 0:
+            raise ValueError(
+                f"Lowest indices in view should be zero, instead they are ({i0}, {j0})"
+            )
+
+        new_data = []
+        for i in range(i0, i1 + 1):
+            row = []
+            for j in range(j0, j1 + 1):
+                mi, mj = self.transformed_idx(i, j)
+                row.append(self.mat[mi, mj])
+
+            new_data.append(row)
+
+        res = Matrix(new_data, self.nrows, self.ncols)
+        return res
+
+    def _find_extents(self):
+        is_diag = self.A[0][1] == 0 and self.A[1][0] == 0
+        is_transp = self.A[0][0] == 0 and self.A[1][1] == 0
+        if not is_diag and not is_transp:
+            logger.debug(
+                f"Cannot assign extents to view because it's not diagonal or transposed"
+            )
+            self.extents = None
+            self.nrows = None
+            self.ncols = None
+            return
+
+        if is_diag:
+            i0 = int(math.ceil(-self.b[0] / self.A[0][0]))
+            i1 = int(math.floor((self.mat.nrows - 1 - self.b[0]) / self.A[0][0]))
+
+            j0 = int(math.ceil(-self.b[1] / self.A[1][1]))
+            j1 = int(math.floor((self.mat.ncols - 1 - self.b[1]) / self.A[1][1]))
+        elif is_transp:
+            j0 = int(math.ceil(-self.b[0] / self.A[0][1]))
+            j1 = int(math.floor((self.mat.nrows - 1 - self.b[0]) / self.A[0][1]))
+
+            i0 = int(math.ceil(-self.b[1] / self.A[1][0]))
+            i1 = int(math.floor((self.mat.ncols - 1 - self.b[1]) / self.A[1][0]))
+
+        if i0 > i1:
+            i0, i1 = i1, i0
+        if j0 > j1:
+            j0, j1 = j1, j0
+
+        self.extents = (i0, i1, j0, j1)
+
+        self.nrows = i1 - i0 + 1
+        self.ncols = j1 - j0 + 1
 
 
 def _matrix_from_data(data: List[List[str]]) -> Matrix[str]:

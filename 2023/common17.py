@@ -207,11 +207,13 @@ class Graph:
 class MatrixGraph:
     mat: Matrix[int]
     graph: Graph
+    min_jump: int
     max_jump: int
 
     Path = List[Tuple[int, int]]
 
-    def __init__(self, m: Matrix[str], max_jump: int = 3):
+    def __init__(self, m: Matrix[str], *, min_jump: int = 1, max_jump: int = 3):
+        self.min_jump = min_jump
         self.max_jump = max_jump
 
         t0 = time.time()
@@ -294,9 +296,9 @@ class MatrixGraph:
 
                         if 0 <= i1 < self.nrows and 0 <= j1 < self.ncols:
                             s += self.mat[i1, j1]
-
-                            idx1 = self.to_node(i1, j1, next_dir)
-                            self.graph.add_edge(idx0, idx1, s)
+                            if k >= self.min_jump:
+                                idx1 = self.to_node(i1, j1, next_dir)
+                                self.graph.add_edge(idx0, idx1, s)
 
     def shortest(
         self, source: Tuple[int, int], target: Tuple[Union[int, float], int]

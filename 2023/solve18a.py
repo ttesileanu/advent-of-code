@@ -79,15 +79,15 @@ if __name__ == "__main__":
         match = regex.fullmatch(line)
         assert match is not None
 
-        dir, count_str, color = match.groups()
+        dir, count_str, _ = match.groups()
         count = int(count_str)
 
-        dig_plan.append((dir, count, color))
+        dig_plan.append((dir, count))
 
     outline = []
     i, j = 0, 0
     min_i, min_j, max_i, max_j = 0, 0, 0, 0
-    for dir, count, _ in dig_plan:
+    for dir, count in dig_plan:
         di, dj = DIRECTION_MAP[dir]
         for _ in range(count):
             i += di

@@ -1,7 +1,8 @@
 from collections import deque
 from dataclasses import dataclass, field
 from enum import IntEnum
-from typing import Dict, Iterator, List, Optional, Tuple
+from types import SimpleNamespace
+from typing import Callable, Dict, Iterator, List, Optional, Tuple
 
 from utils import logger
 
@@ -112,6 +113,9 @@ class Network:
     def __contains__(self, name: str) -> bool:
         return name in self.modules
 
+    def __len__(self) -> int:
+        return len(self.modules)
+
     def state_list(self) -> List[int]:
         l = []
         for module in self.modules.values():
@@ -176,3 +180,52 @@ def read_network(it: Iterator[str]):
             target.inputs.append(name)
 
     return net
+
+
+def find_cycle(
+    net: Network,
+    origin: str = "broadcaster",
+    max_presses: int = 1_000_000_000,
+    assert_allowed_history: Optional[Callable[[PulseHistory], None]] = None,
+) -> SimpleNamespace:
+    hashes = {}
+    low_pulse_counts = []
+    high_pulse_counts = []
+
+    period_start = None
+    period = None
+
+    net.reset()
+    for i in range(max_presses):
+        crt_hash = net.state_hash()
+        if crt_hash in hashes:
+            period_start = hashes[crt_hash]
+            period = i - period_start
+            break
+
+        hashes[crt_hash] = i
+        history = net.send_pulse(origin)
+        logger.debug(f"Results from press {i}: {show_history(history)}")
+        if assert_allowed_history is not None:
+            assert_allowed_history(history)
+
+        just_pulses = [_[1] for _ in history]
+        low_pulse_counts.append(just_pulses.count(Pulse.LOW))
+        high_pulse_counts.append(just_pulses.count(Pulse.HIGH))
+
+    if period_start is not None:
+        logger.debug(
+            f"Pulse at {origin}, period started at {period_start} presses, {period=}"
+        )
+    else:
+        logger.debug(
+            f"Pulse at {origin}, no period found for the first {max_presses} presses"
+        )
+
+    res = SimpleNamespace(
+        period_start=period_start,
+        period=period,
+        low_pulse_counts=low_pulse_counts,
+        high_pulse_counts=high_pulse_counts,
+    )
+    return res

@@ -1,3 +1,4 @@
+import itertools
 from collections import deque
 from dataclasses import dataclass, field
 from enum import IntEnum
@@ -5,6 +6,14 @@ from types import SimpleNamespace
 from typing import Callable, Dict, Iterator, List, Optional, Tuple
 
 from utils import logger
+
+
+try:
+    import graphviz
+
+    HAS_GRAPHVIZ = True
+except ImportError:
+    HAS_GRAPHVIZ = False
 
 
 class Pulse(IntEnum):
@@ -23,6 +32,9 @@ class Module:
 
     def state_list(self) -> List[int]:
         return []
+
+    def reset(self):
+        pass
 
 
 class Untyped(Module):
@@ -51,6 +63,9 @@ class FlipFlop(Module):
     def state_list(self) -> List[int]:
         return [self.state]
 
+    def reset(self):
+        self.state = self.State.OFF
+
 
 @dataclass(kw_only=True)
 class Conjunction(Module):
@@ -72,9 +87,12 @@ class Conjunction(Module):
 
     def _check_last_inputs(self):
         if self.last_inputs is None:
-            self.last_inputs = {}
-            for name in self.inputs:
-                self.last_inputs[name] = Pulse.LOW
+            self.reset()
+
+    def reset(self):
+        self.last_inputs = {}
+        for name in self.inputs:
+            self.last_inputs[name] = Pulse.LOW
 
 
 @dataclass(kw_only=True)
@@ -125,6 +143,85 @@ class Network:
 
     def state_hash(self) -> int:
         return hash(tuple(self.state_list()))
+
+    def split_from(self, origin: str, target: str) -> List["Network"]:
+        l = []
+        origin_module = self.modules[origin]
+        for child in origin_module.outputs:
+            subnet = self.get_subnet(child)
+            if target in subnet.modules:
+                l.append(subnet)
+            else:
+                logger.warning(
+                    f"Component with {len(subnet)} nodes missing {target}; ignoring"
+                )
+
+            # ensure the networks have only a special kind of external inputs:
+            # * input from origin to child
+            # * input to node(s) only projecting to target
+            for name, module in subnet.modules.items():
+                for inp in module.inputs:
+                    if inp not in subnet.modules:
+                        is_input = name == child and inp == origin
+                        is_output = module.outputs == [target]
+                        if not is_input and not is_output:
+                            raise ValueError(
+                                f"Subnetwork {child} has external input {inp}->{name} "
+                                f"that is neither an input from {origin=}, "
+                                f"nor projecting uniquely to {target}"
+                            )
+
+        return l
+
+    def get_subnet(self, origin: str) -> "Network":
+        q = deque([origin])
+        component = [origin]
+        visited = set(component)
+        while q:
+            name = q.pop()
+            module = self.modules[name]
+            for other in module.outputs:
+                if other not in visited:
+                    visited.add(other)
+                    component.append(other)
+                    q.appendleft(other)
+
+        subnet = Network()
+        for name in component:
+            module = self.modules[name]
+            subnet.add_module(name, module)
+            for child in module.outputs:
+                assert child in visited
+
+        return subnet
+
+    def reset(self):
+        for module in self.modules.values():
+            module.reset()
+
+    def to_graphviz(
+        self, components: Optional[List["Network"]] = None
+    ) -> "graphviz.Digraph":
+        if not HAS_GRAPHVIZ:
+            raise RuntimeError("Need graphviz package")
+
+        g = graphviz.Graph("G")
+
+        colors = {name: "black" for name in self.modules}
+        if components is not None:
+            color_cycle = ["red", "green", "blue", "magenta", "cyan", "yellow", "black"]
+            for subnet, color in zip(components, itertools.cycle(color_cycle)):
+                for name in subnet.modules:
+                    colors[name] = color
+
+        for name in self.modules:
+            g.node(name, color=colors[name])
+
+        for origin, module in self.modules.items():
+            for target in module.outputs:
+                g.edge(origin, target)
+
+        return g
 
 
 def show_history(history: PulseHistory) -> str:
@@ -186,7 +283,7 @@ def find_cycle(
     net: Network,
     origin: str = "broadcaster",
     max_presses: int = 1_000_000_000,
-    assert_allowed_history: Optional[Callable[[PulseHistory], None]] = None,
+    return_histories: bool = False,
 ) -> SimpleNamespace:
     hashes = {}
     low_pulse_counts = []
@@ -194,6 +291,8 @@ def find_cycle(
 
     period_start = None
     period = None
+
+    histories = []
 
     net.reset()
     for i in range(max_presses):
@@ -206,8 +305,9 @@ def find_cycle(
         hashes[crt_hash] = i
         history = net.send_pulse(origin)
         logger.debug(f"Results from press {i}: {show_history(history)}")
-        if assert_allowed_history is not None:
-            assert_allowed_history(history)
+
+        if return_histories:
+            histories.append(history)
 
         just_pulses = [_[1] for _ in history]
         low_pulse_counts.append(just_pulses.count(Pulse.LOW))
@@ -228,4 +328,6 @@ def find_cycle(
         low_pulse_counts=low_pulse_counts,
         high_pulse_counts=high_pulse_counts,
     )
+    if return_histories:
+        res.histories = histories
     return res

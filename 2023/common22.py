@@ -58,7 +58,9 @@ def drop_and_count_deps(blocks: List[Block]) -> SimpleNamespace:
     # None = ground
     floor = [(extents[1][1] + 1) * [(0, None)] for i in range(extents[1][0] + 1)]
     # keep track of what each block relies on for not falling
-    dependencies = defaultdict(set)
+    supported_by = defaultdict(set)
+    # also keep track of what each block supports
+    supports = defaultdict(set)
     frozen = {None}
     for i, block in enumerate(blocks):
         # where will it fall?
@@ -87,10 +89,11 @@ def drop_and_count_deps(blocks: List[Block]) -> SimpleNamespace:
                     if item[1] in frozen:
                         frozen.add(i)
                     if item[1] is not None:
-                        dependencies[i].add(item[1])
+                        supported_by[i].add(item[1])
+                        supports[item[1]].add(i)
 
                 floor[x][y] = (end_z + height, i)
 
     assert len(frozen) == len(blocks) + 1
-    res = SimpleNamespace(dependencies=dependencies, floor=floor)
+    res = SimpleNamespace(supported_by=supported_by, supports=supports, floor=floor)
     return res

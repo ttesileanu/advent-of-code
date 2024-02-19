@@ -56,7 +56,7 @@ if __name__ == "__main__":
     blocks = load_blocks(iterinput())
     show_blocks(blocks, wait=False)
 
-    dependencies = drop_and_count_deps(blocks).dependencies
+    dependencies = drop_and_count_deps(blocks).supported_by
     logger.debug(f"{dependencies=}")
 
     indispensable = set(

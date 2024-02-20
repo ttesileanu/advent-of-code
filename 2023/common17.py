@@ -1,21 +1,16 @@
-import heapq
-import itertools
 import math
 import time
 from collections import defaultdict
 from typing import (
     Dict,
-    Generic,
-    Iterator,
     List,
     Literal,
     Optional,
     Tuple,
-    TypeVar,
     Union,
 )
 
-from utils import logger, Matrix
+from utils import logger, Matrix, PriorityQueue
 
 
 try:
@@ -25,92 +20,6 @@ try:
     FANCY_PLOTTING = True
 except ImportError:
     FANCY_PLOTTING = False
-
-T = TypeVar("T")
-
-
-class PriorityQueue(Generic[T]):
-    """Priority queue implementation based on Python docs.
-
-    https://docs.python.org/3/library/heapq.html#priority-queue-implementation-notes
-    """
-
-    _REMOVED = "<removed-task>"
-
-    _heap: List[List[Tuple[int, int, T]]]
-    _finder: Dict[T, int]
-    _counter: Iterator[int]
-    _n_tasks: int
-
-    def __init__(self):
-        self._heap = []
-        self._finder = {}
-        self._counter = itertools.count()
-        self._n_tasks = 0
-
-    def add_task(self, task: T, priority: int = 0):
-        """Add a new task or update the priority of an existing task."""
-        if task in self._finder:
-            self.remove_task(task)
-
-        count = next(self._counter)
-        entry = [priority, count, task]
-        self._finder[task] = entry
-        heapq.heappush(self._heap, entry)
-
-        self._n_tasks += 1
-
-    def remove_task(self, task: T):
-        """Mark an existing task as removed.
-
-        Raise `KeyError` if not found.
-        """
-        entry = self._finder[task]
-        entry[-1] = self._REMOVED
-        self._n_tasks -= 1
-
-    def pop_task(self) -> T:
-        """Remove and return the lowest priority task.
-
-        Raise `KeyError` if empty.
-        """
-        while self._heap:
-            _, _, task = heapq.heappop(self._heap)
-            if task is not self._REMOVED:
-                self._finder.pop(task)
-                self._n_tasks -= 1
-                return task
-
-        raise KeyError("Pop from empty priority queue")
-
-    def peek(self) -> T:
-        """Take a peek at the lowest priority task.
-
-        This also cleans any items tagged with REMOVED that might have had lower
-        priority than the currently lowest priority task.
-
-        Raise `KeyError` if empty.
-        """
-        while self._heap:
-            _, _, task = self._heap[0]
-            if task is not self._REMOVED:
-                return task
-
-            heapq.heappop(self._heap)
-
-        raise KeyError("Peek at empty priority queue")
-
-    def __len__(self) -> int:
-        return self._n_tasks
-
-    def __repr__(self) -> str:
-        n_tasks = len(self)
-        s = f"PriorityQueue(n_tasks={n_tasks}, tasks=["
-        if n_tasks != 0:
-            s += f"{self.peek()}, ..."
-
-        s += "])"
-        return s
 
 
 class Graph:

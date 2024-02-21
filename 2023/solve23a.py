@@ -1,6 +1,6 @@
 #! /usr/bin/env python
 import math
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from utils import loadmatrix, logger, Matrix, PriorityQueue
 
@@ -22,7 +22,12 @@ except ImportError:
     FANCY_PLOTTING = False
 
 
-def show_matrix(mat: Matrix[str], wait: bool = True, figsize: float = 7.0):
+def show_matrix(
+    mat: Matrix[str],
+    wait: bool = True,
+    figsize: float = 7.0,
+    path: Optional[List[Tuple[int, int]]] = None,
+):
     fig, ax = plt.subplots(figsize=(figsize, figsize))
     m = np.asarray(mat.data) != "#"
     ax.imshow(m, cmap="gray")
@@ -43,6 +48,12 @@ def show_matrix(mat: Matrix[str], wait: bool = True, figsize: float = 7.0):
                     fontsize=fontsize,
                 )
 
+    if path is not None:
+        p = np.asarray(path)
+        x = p[:, 1]
+        y = p[:, 0]
+        ax.plot(x, y, lw=4, ls=":")
+
     if wait:
         plt.show()
     return fig, ax
@@ -52,10 +63,12 @@ class IntersectionGraph:
     nodes: List[Tuple[int, int]]
     mat_to_node: Dict[Tuple[int, int], int]
     adj: List[Dict[int, int]]
+    paths: Dict[Tuple[int, int], List[Tuple[int, int]]]
 
     def __init__(self, mat: Matrix[str]):
         self.nodes = []
         self.mat_to_node = {}
+        self.paths = {}
         self.adj = []
         self._build_nodes(mat)
         self._build_adj(mat)
@@ -106,6 +119,7 @@ class IntersectionGraph:
         self, mat: Matrix[str], source: Tuple[int, int], to: Tuple[int, int]
     ) -> Tuple[Tuple[int, int], int]:
         visited = {source}
+        path = [source]
         pos = to
         while True:
             neighbors = mat.iterneighbors(*pos, diagonals=False)
@@ -115,6 +129,7 @@ class IntersectionGraph:
                 break
             elif len(potentials) == 2:
                 visited.add(pos)
+                path.append(pos)
                 pos_candidates = [n for n in potentials if n not in visited]
                 assert len(pos_candidates) == 1
                 pos = pos_candidates[0]
@@ -123,9 +138,10 @@ class IntersectionGraph:
                 assert pos in self.nodes
                 break
 
+        self.paths[self.mat_to_node[source], self.mat_to_node[pos]] = path
         return pos, len(visited)
 
-    def longest(self, start: int, end: int) -> int:
+    def longest(self, start: int, end: int) -> Tuple[int, List[Tuple[int, int]]]:
         weights = {start: 0}
         prev = {}
 
@@ -145,7 +161,21 @@ class IntersectionGraph:
                     q.add_task(v, alt)
 
         length = -weights[end]
-        return length
+
+        path_nodes = []
+        node = end
+        while node in prev:
+            path_nodes.append(node)
+            node = prev[node]
+        assert node == start
+        path_nodes.append(node)
+        path_nodes = path_nodes[::-1]
+
+        path = []
+        for n1, n2 in zip(path_nodes[:-1], path_nodes[1:]):
+            path.extend(self.paths[n1, n2])
+
+        return length, path
 
 
 if __name__ == "__main__":
@@ -186,6 +216,7 @@ if __name__ == "__main__":
     assert g.nodes[0] == start
     assert g.nodes[-1] == end
 
-    length = g.longest(0, len(g.nodes) - 1)
+    length, path = g.longest(0, len(g.nodes) - 1)
+    logger.debug(f"Longest path: {path}")
     print(f"Longest hike has {length} steps.")
-    show_matrix(mat)
+    show_matrix(mat, path=path)

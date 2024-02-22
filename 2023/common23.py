@@ -1,5 +1,5 @@
 import math
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 from utils import logger, Matrix, PriorityQueue
 
@@ -64,28 +64,36 @@ class IntersectionGraph:
     mat_to_node: Dict[Tuple[int, int], int]
     adj: List[Dict[int, int]]
     paths: Dict[Tuple[int, int], List[Tuple[int, int]]]
+    slopes: bool
 
-    def __init__(self, mat: Matrix[str]):
+    def __init__(self, mat: Matrix[str], slopes: bool = True):
         self.nodes = []
         self.mat_to_node = {}
         self.paths = {}
         self.adj = []
+        self.slopes = slopes
         self._build_nodes(mat)
         self._build_adj(mat)
 
     def _build_nodes(self, mat: Matrix[str]):
-        # find start and end intersections + add slopes
+        # find start and end intersections + add slopes (if needed)
         assert mat.data[0].count(GROUND) == 1
         assert mat.data[-1].count(GROUND) == 1
         start = (0, mat.data[0].index(GROUND))
         end = (mat.nrows - 1, mat.data[-1].index(GROUND))
 
-        n_slopes = sum(sum(1 if _ in SLOPES else 0 for _ in row) for row in mat.data)
-        logger.debug(f"{n_slopes=}")
+        if self.slopes:
+            n_slopes = sum(sum(1 if _ in SLOPES else 0 for _ in r) for r in mat.data)
+            logger.debug(f"{n_slopes=}")
 
-        # add appropriate slopes at start and end points
-        mat[start[0] + 1, start[1]] = SLOPE_DOWN
-        mat[end[0] - 1, end[1]] = SLOPE_DOWN
+            # add appropriate slopes at start and end points
+            mat[start[0] + 1, start[1]] = SLOPE_DOWN
+            mat[end[0] - 1, end[1]] = SLOPE_DOWN
+        else:
+            for i in range(mat.nrows):
+                for j in range(mat.ncols):
+                    if mat[i, j] in SLOPES:
+                        mat[i, j] = GROUND
 
         # check that the map is a maze with a relatively small number of intersections
         for i in range(mat.nrows):
@@ -97,7 +105,8 @@ class IntersectionGraph:
                         pos = (i, j)
                         self.mat_to_node[pos] = len(self.nodes)
                         self.nodes.append(pos)
-                        assert all(_ in SLOPES for _ in neighbors)
+                        if self.slopes:
+                            assert all(_ in SLOPES for _ in neighbors)
 
         logger.info(
             f"There are {len(self.nodes)} intersections on the map "
@@ -112,16 +121,20 @@ class IntersectionGraph:
             targets = {}
             neighbors = mat.iterneighbors(*source, diagonals=False)
             for neigh in neighbors:
-                if (
-                    mat[neigh] == SLOPE_RIGHT
-                    and neigh == (source[0], source[1] + 1)
-                    or mat[neigh] == SLOPE_LEFT
-                    and neigh == (source[0], source[1] - 1)
-                    or mat[neigh] == SLOPE_UP
-                    and neigh == (source[0] - 1, source[1])
-                    or mat[neigh] == SLOPE_DOWN
-                    and neigh == (source[0] + 1, source[1])
-                ):
+                if self.slopes:
+                    is_path = (
+                        mat[neigh] == SLOPE_RIGHT
+                        and neigh == (source[0], source[1] + 1)
+                        or mat[neigh] == SLOPE_LEFT
+                        and neigh == (source[0], source[1] - 1)
+                        or mat[neigh] == SLOPE_UP
+                        and neigh == (source[0] - 1, source[1])
+                        or mat[neigh] == SLOPE_DOWN
+                        and neigh == (source[0] + 1, source[1])
+                    )
+                else:
+                    is_path = mat[neigh] != FOREST
+                if is_path:
                     target_pos, length = self._trace(mat, source, neigh)
                     target = self.mat_to_node[target_pos]
                     targets[target] = length
@@ -157,6 +170,18 @@ class IntersectionGraph:
         return pos, len(visited)
 
     def longest(self, start: int, end: int) -> Tuple[int, List[Tuple[int, int]]]:
+        if self.slopes:
+            length, path_nodes = self._longest_dag(start, end)
+        else:
+            length, path_nodes = self._longest_no_slopes(start, end)
+
+        path = []
+        for n1, n2 in zip(path_nodes[:-1], path_nodes[1:]):
+            path.extend(self.paths[n1, n2])
+
+        return length, path
+
+    def _longest_dag(self, start: int, end: int) -> Tuple[int, List[int]]:
         weights = {start: 0}
         prev = {}
 
@@ -186,8 +211,33 @@ class IntersectionGraph:
         path_nodes.append(node)
         path_nodes = path_nodes[::-1]
 
-        path = []
-        for n1, n2 in zip(path_nodes[:-1], path_nodes[1:]):
-            path.extend(self.paths[n1, n2])
+        return length, path_nodes
 
-        return length, path
+    def _search(
+        self,
+        source: int,
+        target: int,
+        prev_length: int,
+        prev_path: List[int],
+        prev_visited: Set[int],
+    ):
+        candidates = self.adj[source]
+        for node, edge_length in candidates.items():
+            if node in prev_visited:
+                continue
+
+            length = prev_length + edge_length
+            path = prev_path + [node]
+            if node == target:
+                if length > self._longest[0]:
+                    self._longest = (length, path)
+            else:
+                visited = set(prev_visited)
+                visited.add(node)
+                self._search(node, target, length, path, visited)
+
+    def _longest_no_slopes(self, start: int, end: int) -> Tuple[int, List[int]]:
+        self._longest = (0, [])
+        self._search(start, end, 0, [start], set([start]))
+
+        return self._longest
